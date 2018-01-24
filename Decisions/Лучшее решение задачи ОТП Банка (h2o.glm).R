@@ -1,15 +1,8 @@
 # подключаем пакеты
-library(caret)
 library(dplyr)
+library(caret)
 library(imputeMissings)
 library(Hmisc)
-library(CHAID)
-library(randomForest)
-library(ranger)
-library(memisc)
-library(ggplot2)
-library(doParallel)
-library(pROC)
 library(rcompanion)
 library(car)
 
@@ -477,149 +470,113 @@ testing <- newFeaturesData(testing)
 # смотрим типы переменных
 str(testing)
 
-# настраиваем параметры решетчатого поиска
-set.seed(15111)
-ctrl = trainControl(method = "repeatedcv", number=5, repeats=1, classProbs=T, 
-                    summaryFunction = twoClassSummary)
-gridSet <- expand.grid(
-  .mtry = c(20, 24, 28, 32),
-  .min.node.size =c(100, 110),
-  .splitrule = "gini"
-)
+# загружаем библиотеку h2o, 
+# перед загрузкой библиотеки h2o убедитесь, что библиотека h2o установлена 
+# (сначала установите Java SE Development Kit 8, обратите внимание, 
+# 9-я версия H2O не поддерживается, а затем после установки Java 
+# установите пакет h2o с помощью команды
+# install.packages("h2o", type="source", repos=(c("http://h2o-release.s3.amazonaws.com/h2o/latest_stable_R"))) и
+# затем загрузите библиотеку)
+library(h2o)
+h2o.init(nthreads=-1, max_mem_size = "8G")
 
-modelWeights <- ifelse(training$TARGET == "noResponse",
-                       (1/prop.table(table(training$TARGET))[1]) * 0.5,
-                       (1/prop.table(table(training$TARGET))[2]) * 0.5)
+# смотрим датафреймы перед преобразованием
+# во фреймы H2O, обратите внимание, h2o
+# не умеет обрабатывать упорядоченные факторы
+# (ordered factors)
+str(training)
+str(testing)
 
-modelInfo <- list(label = "Random Forest",
-                  library = c("e1071", "ranger", "dplyr"),
-                  check = function(pkg) {
-                    requireNamespace("ranger")
-                    current <- packageDescription("ranger")$Version
-                    expected <- "0.8.0"
-                    if(compareVersion(current, expected) < 0)
-                      stop("This modeling workflow requires ranger version ",
-                           expected, "or greater.", call. = FALSE)
-                  },
-                  loop = NULL,
-                  type = c("Classification", "Regression"),
-                  parameters = data.frame(parameter = c("mtry", "splitrule", "min.node.size"),
-                                          class = c("numeric", "character", "numeric"),
-                                          label = c("#Randomly Selected Predictors", 
-                                                    "Splitting Rule", 
-                                                    "Minimal Node Size")),
-                  grid = function(x, y, len = NULL, search = "grid") {
-                    if(search == "grid") {
-                      srule <-
-                        if (is.factor(y))
-                          "gini"
-                      else
-                        "variance"
-                      out <- expand.grid(mtry = 
-                                           caret::var_seq(p = ncol(x),
-                                                          classification = is.factor(y),
-                                                          len = len),
-                                         min.node.size = ifelse( is.factor(y), 1, 5), 
-                                         splitrule = c(srule, "extratrees"))
-                    } else {
-                      srules <- if (is.factor(y))
-                        c("gini", "extratrees")
-                      else
-                        c("variance", "extratrees", "maxstat")
-                      out <-
-                        data.frame(
-                          min.node.size= sample(1:(min(20,nrow(x))), size = len, replace = TRUE), 
-                          mtry = sample(1:ncol(x), size = len, replace = TRUE),
-                          splitrule = sample(srules, size = len, replace = TRUE)
-                        )
-                    }
-                    out
-                  },
-                  fit = function(x, y, wts, param, lev, last, classProbs, ...) {
-                    if((!is.data.frame(x))||dplyr::is.tbl(x)) x <- as.data.frame(x)
-                    x$.outcome <- y
-                    if(!is.null(wts)) {
-                      out <- ranger::ranger(dependent.variable.name = ".outcome", 
-                                            data = x, 
-                                            mtry = param$mtry, 
-                                            min.node.size = param$min.node.size,
-                                            splitrule = as.character(param$splitrule),
-                                            write.forest = TRUE,
-                                            probability = classProbs, 
-                                            case.weights = wts, 
-                                            ...)
-                    } else {
-                      out <- ranger::ranger(dependent.variable.name = ".outcome", 
-                                            data = x, 
-                                            mtry = param$mtry, 
-                                            min.node.size = param$min.node.size,
-                                            splitrule = as.character(param$splitrule),
-                                            write.forest = TRUE,
-                                            probability = classProbs, 
-                                            ...)
-                    }
-                    ## in case the resampling method is "oob"
-                    if(!last) out$y <- y
-                    out
-                  },
-                  predict = function(modelFit, newdata, submodels = NULL) {
-                    if((!is.data.frame(newdata))||dplyr::is.tbl(newdata)) newdata <- as.data.frame(newdata)
-                    out <- predict(modelFit, newdata)$predictions
-                    if(!is.null(modelFit$obsLevels) & modelFit$treetype == "Probability estimation") {
-                      out <- colnames(out)[apply(out, 1, which.max)]
-                    }
-                    out
-                  },
-                  prob = function(modelFit, newdata, submodels = NULL) {
-                    if(!is.data.frame(newdata)) newdata <- as.data.frame(newdata)
-                    predict(modelFit, newdata)$predictions
-                  },
-                  predictors = function(x, ...) {
-                    var_index <- sort(unique(unlist(lapply(x$forest$split.varIDs, function(x) x))))
-                    var_index <-var_index[var_index > 0]
-                    x$forest$independent.variable.names[var_index]
-                  },
-                  varImp = function(object, ...){
-                    if(length(object$variable.importance) == 0)
-                      stop("No importance values available")
-                    imps <- ranger:::importance(object)
-                    out <- data.frame(Overall = as.vector(imps))
-                    rownames(out) <- names(imps)
-                    out
-                  },
-                  levels = function(x) {
-                    if(x$treetype == "Probability estimation") {
-                      out <- colnames(x$predictions)
-                    } else {
-                      if(x$treetype == "Classification") {
-                        out <- levels(x$predictions)
-                      } else out <- NULL
-                    }
-                    out
-                  },
-                  oob = function(x) {
-                    postResample(x$predictions, x$y)
-                  },
-                  tags = c("Random Forest", "Ensemble Model", "Bagging",
-                           "Implicit Feature Selection", "Accepts Case Weights"),
-                  sort = function(x) x[order(x[,1]),])
+# выполняем преобразование во фреймы h2o
+train <- as.h2o(training)
+valid <- as.h2o(testing)
 
+# взглянем на обучающий фрейм h2o
+str(train)
 
-# запускаем решетчатый поиск, перебираем 
-# параметры mtry и min.node.size пакета
-# ranger (то есть количество случайно
-# обираемых предикторов для разбиения и
-# минимальное количество наблюдений в 
-# терминальном узле для случайного леса)
-ranger_gridsearch <- train(TARGET ~ ., data = training, num.trees=800,
-                           method = modelInfo, importance = "impurity",
-                           weights = modelWeights,
-                           metric = "ROC", 
-                           trControl = ctrl, tuneGrid = gridSet)
+# строим модель логистической регрессии
+glm1 <- h2o.glm(family= "binomial", training_frame = train, validation_frame = valid, 
+                x=c(2:65), y=1, seed = 1000000)
 
-# печатаем результаты решетчатого поиска
-print(ranger_gridsearch)
+# смотрим модель
+summary(glm1)
 
+# строим модель логистической регрессии 
+# с перебором lambda - силы штрафа 
+glm2 <- h2o.glm(family= "binomial", training_frame = train, validation_frame = valid, 
+                x=c(2:65), y=1, seed = 1000000, lambda_search = TRUE)
+
+# смотрим модель
+summary(glm2)
+
+# выполняем решетчатый поиск с перебором alpha и lambda,
+# alpha задает тип регуляризации: значение 1 соответствует 
+# l1-регуляризации (лассо), значение 0 соответствует 
+# l2-регуляризации (гребневой регрессии), 
+# промежуточное значение соответствует 
+# комбинации штрафов l1 и l2 (эластичной сети),
+# lambda задает силу штрафа
+hyper_parameters <- list(alpha = c(0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1))
+glm_grid <- h2o.grid(algorithm = "glm", grid_id = "glm_grid", 
+                     hyper_params = hyper_parameters, 
+                     training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                     lambda_search=TRUE, family = "binomial",
+                     seed = 1000000)
+
+# выводим результаты решетчатого поиска
+summary(glm_grid)
+
+# сортируем по AUC
+sorted_glm_grid <- h2o.getGrid("glm_grid", sort_by = "auc", decreasing = TRUE)
+
+# выводим результаты решетчатого поиска,
+# отсортировав по убыванию AUC
+sorted_glm_grid
+
+# объединяем фреймы в один
+TrainValid <- h2o.rbind(train, valid)
+str(TrainValid)
+
+# выполняем решетчатый поиск с 5-блочной перекрестной проверкой
+glm_grid_cv <- h2o.grid(algorithm = "glm", grid_id = "glm_grid_cv", 
+                        hyper_params = hyper_parameters, 
+                        training_frame = TrainValid, x = c(2:65), y = "TARGET",
+                        lambda_search=TRUE, family = "binomial",
+                        nfolds=5, keep_cross_validation_predictions=TRUE,
+                        seed = 1000000)
+
+# выводим результаты решетчатого поиска
+# с перекрестной проверкой
+summary(glm_grid_cv)
+
+# сортируем по AUC
+sorted_glm_grid_cv <- h2o.getGrid("glm_grid_cv", sort_by = "auc", decreasing = TRUE)
+
+# выводим результаты решетчатого поиска с
+# перекрестной проверкой, отсортировав 
+# по убыванию AUC
+sorted_glm_grid_cv
+
+# записываем идентификатор наилучшей модели
+opt_model_id <- sorted_glm_grid_cv@model_ids[[1]]
+
+# извлекаем наилучшую модель
+opt_model <- h2o.getModel(opt_model_id)
+
+# смотрим наилучшую модель
+opt_model
+
+# берем значения alpha и lambda из наилучшей модели
+# и добавляем список интеракций, обучаем модель
+# с 5-блочной перекрестной проверкой
+glm3 <- h2o.glm(family= "binomial", training_frame = TrainValid, 
+                x=c(2:65), y=1, alpha = 0.1, lambda = 0.00168,
+                interactions=c("GENDER", "EDUCATION", "REGION_NM",
+                               "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
+                               "FACT_TP_FL", "GEN_PHONE_FL"),
+                nfolds=5, keep_cross_validation_predictions=TRUE,
+                seed = 1000000)
+glm3
 
 # преобразовываем весь обучающий набор и итоговый тестовый набор
 # перевыгружаем данные
@@ -682,198 +639,23 @@ sapply(OTPset_test, function(x) sum(is.na(x)))
 # применяем функцию, создающую новые переменные
 OTPset_test <- newFeaturesData(OTPset_test)
 
-
-# загружаем библиотеку h2o, 
-# перед загрузкой библиотеки h2o убедитесь, что библиотека h2o установлена 
-# (сначала установите Java SE Development Kit 8, обратите внимание, 
-# 9-я версия H2O не поддерживается, а затем после установки Java 
-# установите пакет h2o с помощью команды
-# install.packages("h2o", type="source", repos=(c("http://h2o-release.s3.amazonaws.com/h2o/latest_stable_R"))) и
-# затем загрузите библиотеку)
-
-library(h2o)
-h2o.init(nthreads=-1, max_mem_size = "8G")
-
-# смотрим датафреймы перед преобразованием
-# во фреймы H2O, обратите внимание, h2o
-# не умеет обрабатывать упорядоченные факторы
-# (ordered factors)
+# смотрим типы переменных
 str(OTPset)
 str(OTPset_test)
 
 # выполняем преобразование во фреймы h2o
-train <- as.h2o(OTPset)
-valid <- as.h2o(OTPset_test)
+tr <- as.h2o(OTPset)
+val <- as.h2o(OTPset_test)
 
-# взглянем на обучающий фрейм h2o
-str(train)
+# обучаем модель логистической регрессии на всем обучающем наборе
+# проверяем на тестовом наборе
+glm_full <- h2o.glm(family= "binomial", training_frame = tr, validation_frame = val, 
+                    x=c(2:65), y=1, seed = 1000000, alpha = 0.1, lambda = 0.00168,
+                    interactions=c("GENDER", "EDUCATION", "REGION_NM",
+                                   "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
+                                   "FACT_TP_FL", "GEN_PHONE_FL"))
+glm_full
 
-# строим модель логистической регрессии
-glm1 <- h2o.glm(family= "binomial", training_frame = train, validation_frame = valid, 
-               x=c(2:65), y=1, seed = 1000000)
-
-# смотрим модель
-summary(glm1)
-
-# строим модель логистической регрессии 
-# с перебором lambda - силы штрафа 
-glm2 <- h2o.glm(family= "binomial", training_frame = train, validation_frame = valid, 
-               x=c(2:65), y=1, seed = 1000000, lambda_search = TRUE)
-
-# смотрим модель
-summary(glm2)
-
-# выполняем решетчатый поиск с перебором alpha и lambda,
-# alpha задает тип регуляризации: значение 1 соответствует 
-# l1-регуляризации (лассо), значение 0 соответствует 
-# l2-регуляризации (гребневой регрессии), 
-# промежуточное значение соответствует 
-# комбинации штрафов l1 и l2 (эластичной сети),
-# lambda задает силу штрафа
-hyper_parameters <- list(alpha = c(0, 0.2, 0.4, 0.6, 1))
-glm_grid <- h2o.grid(algorithm = "glm", grid_id = "glm_grid", 
-                     hyper_params = hyper_parameters, 
-                     training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
-                     lambda_search=TRUE, family = "binomial", seed = 1000000)
-
-# выводим результаты решетчатого поиска
-summary(glm_grid)
-
-# сортируем по AUC
-sorted_glm_grid <- h2o.getGrid("glm_grid", sort_by = "auc", decreasing = TRUE)
-
-# выводим результаты решетчатого поиска,
-# отсортировав по убыванию AUC
-sorted_glm_grid
-
-
-# снова выполняем решетчатый поиск, но теперь дополнительно
-# зададим список предикторов для рассмотрения парных
-# взаимодействий
-glm_grid2 <- h2o.grid(algorithm = "glm", grid_id = "glm_grid2", 
-                     hyper_params = hyper_parameters, 
-                     training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
-                     lambda_search=TRUE, family = "binomial",
-                     interactions=c("GENDER", "EDUCATION", "REGION_NM", "REG_ADDRESS_PROVINCE"),
-                     seed = 1000000)
-
-# выводим результаты решетчатого поиска
-summary(glm_grid2)
-
-# сортируем по AUC
-sorted_glm_grid2 <- h2o.getGrid("glm_grid2", sort_by = "auc", decreasing = TRUE)
-
-# выводим результаты решетчатого поиска,
-# отсортировав по убыванию AUC
-sorted_glm_grid2
-
-# записываем идентификатор наилучшей модели
-best_model_id <- sorted_glm_grid2@model_ids[[1]]
-
-# извлекаем наилучшую модель
-best_model <- h2o.getModel(best_model_id)
-
-# смотрим наилучшую модель
-best_model
-
-# строим модель градиентного бустинга, перечислены 
-# значения параметров по умолчанию: learn_rate -
-# темп обучения, ntrees - количество деревьев (итераций),
-# max_depth - глубина, min_rows - количество
-# наблюдений в терминальном узле, sample_rate -
-# процент отобранных строк для построения дерева,
-# col_sample_rate - процент случайно отбираемых столбцов 
-# для каждого разбиения узла, col_sample_rate_per_tree -
-# процент случайно отбираемых столбцов для каждого дерева,
-# col_sample_rate_per_tree - относительное изменение 
-# отбора столбцов для каждого уровня дерева
-gbm1 <- h2o.gbm(learn_rate=0.1, ntrees = 50, max_depth = 5, min_rows = 10,
-                sample_rate = 1, col_sample_rate = 1,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 1,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm1)
-
-
-# попробуем уменьшить глубину
-gbm2 <- h2o.gbm(learn_rate=0.1, ntrees = 50, max_depth = 2, min_rows = 10,
-                sample_rate = 1, col_sample_rate = 1,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 1,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm2)
-
-
-# теперь попробуем увеличить минимальное 
-# количество наблюдений в листе
-gbm3 <- h2o.gbm(learn_rate=0.1, ntrees = 50, max_depth = 2, min_rows = 115,
-                sample_rate = 1, col_sample_rate = 1,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 1,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm3)
-
-
-# теперь попробуем уменьшить процент отбираемых 
-# столбцов (вносим рандомизацию)
-gbm4 <- h2o.gbm(learn_rate=0.1, ntrees = 50, max_depth = 2, min_rows = 115,
-                sample_rate = 1, col_sample_rate = 0.14,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 1,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm4)
-
-
-# теперь попробуем уменьшить процент отбираемых 
-# столбцов для каждого дерева (вносим рандомизацию)
-gbm5 <- h2o.gbm(learn_rate=0.1, ntrees = 50, max_depth = 2, min_rows = 115,
-                sample_rate = 1, col_sample_rate = 0.14,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 0.25,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm5)
-
-# возвращаемся к базовым параметрам, увеличиваем learn_rate
-gbm6 <- h2o.gbm(learn_rate=0.2, ntrees = 50, max_depth = 2, min_rows = 115,
-                sample_rate = 1, col_sample_rate = 0.14,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 0.25,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm6)
-
-
-# поскольку мы немного увеличили learn_rate, можно 
-# немного снизить количество итераций
-gbm7 <- h2o.gbm(learn_rate=0.2, ntrees = 45, max_depth = 2, min_rows = 115,
-                sample_rate = 1, col_sample_rate = 0.14,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 0.25,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm7)
-
-
-# глубину пропускаем, увеличиваем минимальное 
-# количество наблюдений в листе
-gbm8 <- h2o.gbm(learn_rate=0.2, ntrees = 45, max_depth = 2, min_rows = 125,
-                sample_rate = 1, col_sample_rate = 0.14,
-                col_sample_rate_change_per_level = 1, 
-                col_sample_rate_per_tree = 0.25,
-                training_frame = train, validation_frame = valid, 
-                x=c(2:65), y=1, seed = 1000000)
-
-summary(gbm8)
+# завершаем сеанс H2O
+h2o.shutdown()
 
