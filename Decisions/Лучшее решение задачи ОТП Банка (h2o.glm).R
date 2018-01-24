@@ -414,6 +414,7 @@ newFeaturesData <-
         CHILD_DEPENDANTS = ifelse(is.nan(CHILD_DEPENDANTS), 0, CHILD_DEPENDANTS),
         AUTO_FOR_FL = as.factor(ifelse(AUTO_RUS_FL == 0 & OWN_AUTO > 0, 1, 0)),
         CREDIT2=log(CREDIT),
+        TERM2 = as.factor(TERM),
         WORK_TIME2=log(WORK_TIME+0.01),
         FACT_LIVING_TERM=log(FACT_LIVING_TERM+0.01),
         PAYMENT = CREDIT/TERM,
@@ -570,10 +571,10 @@ opt_model
 # и добавляем список интеракций, обучаем модель
 # с 5-блочной перекрестной проверкой
 glm3 <- h2o.glm(family= "binomial", training_frame = TrainValid, 
-                x=c(2:65), y=1, alpha = 0.1, lambda = 0.00168,
+                x=c(2:65), y=1, alpha = 0.1, lambda = 0.001844,
                 interactions=c("GENDER", "EDUCATION", "REGION_NM",
                                "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
-                               "FACT_TP_FL", "GEN_PHONE_FL"),
+                               "FACT_TP_FL", "TERM2", "GEN_PHONE_FL"),
                 nfolds=5, keep_cross_validation_predictions=TRUE,
                 seed = 1000000)
 glm3
@@ -650,10 +651,11 @@ val <- as.h2o(OTPset_test)
 # обучаем модель логистической регрессии на всем обучающем наборе
 # проверяем на тестовом наборе
 glm_full <- h2o.glm(family= "binomial", training_frame = tr, validation_frame = val, 
-                    x=c(2:65), y=1, seed = 1000000, alpha = 0.1, lambda = 0.00168,
+                    x=c(2:65), y=1, seed = 1000000, alpha = 0.1, lambda = 0.001844,
                     interactions=c("GENDER", "EDUCATION", "REGION_NM",
                                    "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
-                                   "FACT_TP_FL", "GEN_PHONE_FL"))
+                                   "FACT_TP_FL", "TERM2", "GEN_PHONE_FL"))
+# смотрим модель
 glm_full
 
 # завершаем сеанс H2O
