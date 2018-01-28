@@ -28,6 +28,7 @@ install.packages("pROC")
 install.packages("xlsx")
 install.packages("stringr")
 
+
 # считываем CSV-файл в датафрейм data
 data <- read.csv2("C:/Trees/Churn.csv", sep=";")
 
@@ -745,6 +746,36 @@ roc_hold3 <-plot.roc(holdout$churn, prob_hold3[,2],
 legend("bottomright", legend=c("Модель CHAID: minsplit = 1000, minbucket = 500", 
                                "Модель CHAID: minsplit = 200, minbucket = 100"), 
        col=c("#1c61b6", "#008600"), lwd=2)
+
+
+# получаем прогнозы
+predictions <- predict(chd3, holdout, type="response")
+
+# строим матрицу ошибок
+table(holdout$churn, predictions)
+
+# вычисляем точность
+Precision=427/(427+139)
+
+# вычисляем полноту
+Recall=427/(427+171)
+
+# вычисляем F1-меру
+F1_score = (2*Precision*Recall)/(Precision + Recall)
+F1_score
+
+probs <- predict(chd3, holdout, type="prob")
+
+library(precrec)
+sscurves <- evalmod(scores = probs[,2], labels = holdout$churn)
+sscurves
+
+plot(sscurves)
+
+library(ggplot2)
+
+
+
 
 # 2.3.8 Многократное случайное разбиение на обучающую 
 # и контрольную выборки как способ проверки модели
