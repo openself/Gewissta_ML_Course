@@ -508,10 +508,10 @@ str(train)
 drf1 <- h2o.randomForest(training_frame = train, validation_frame = valid, 
                         x=c(2:65), y=1, seed = 1000000)
 
+# выводим информацию о модели
 summary(drf1)
 
-# выполняем решетчатый поиск, перебирая значения глубины
-# минимального количества наблюдений в листе,
+# выполняем решетчатый поиск, меняя глубину
 hyper_parameters <- list(max_depth=c(6, 8, 10, 12, 14, 16))
 drf_grid <- h2o.grid(algorithm = "drf", grid_id = "drf_grid", 
                      hyper_params = hyper_parameters,
@@ -532,6 +532,8 @@ sorted_drf_grid <- h2o.getGrid("drf_grid", sort_by = "auc", decreasing = TRUE)
 # отсортировав по убыванию AUC
 sorted_drf_grid
 
+# выполняем решетчатый поиск, меняя количество
+# случайно отбираемых предикторов
 hyper_parameters2 <- list(mtries=c(4, 6, 8, 10, 12))
 drf_grid2 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid2", 
                      hyper_params = hyper_parameters2,
@@ -541,16 +543,15 @@ drf_grid2 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid2",
                      training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
                      seed = 1000000)
 
-# выводим результаты решетчатого поиска
-summary(drf_grid2)
-
-# сортируем по AUC
+# сортируем результаты по AUC
 sorted_drf_grid2 <- h2o.getGrid("drf_grid2", sort_by = "auc", decreasing = TRUE)
 
 # выводим результаты решетчатого поиска,
 # отсортировав по убыванию AUC
 sorted_drf_grid2
 
+# выполняем решетчатый поиск, меняя количество
+# случайно отбираемых строк (наблюдений)
 hyper_parameters3 <- list(sample_rate=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1))
 drf_grid3 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid3", 
                       hyper_params = hyper_parameters3,
@@ -560,18 +561,17 @@ drf_grid3 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid3",
                       training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
                       seed = 1000000)
 
-# выводим результаты решетчатого поиска
-summary(drf_grid3)
-
-# сортируем по AUC
+# сортируем результаты по AUC
 sorted_drf_grid3 <- h2o.getGrid("drf_grid3", sort_by = "auc", decreasing = TRUE)
 
 # выводим результаты решетчатого поиска,
 # отсортировав по убыванию AUC
 sorted_drf_grid3
 
+# выполняем решетчатый поиск, меняя тип
+# гистограммы расщепляющих значений
 hyper_parameters4 <- list(histogram_type=c("UniformAdaptive", "Random", "QuantilesGlobal", "RoundRobin"))
-drf_grid4 <- h2o.grid(algorithm = "drf", grid_id = "drf_gr4", 
+drf_grid4 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid4", 
                       hyper_params = hyper_parameters4,
                       ntrees = 800, max_depth=10, min_rows=1, mtries=4, sample_rate=0.2,
                       col_sample_rate_per_tree = 1,
@@ -579,20 +579,18 @@ drf_grid4 <- h2o.grid(algorithm = "drf", grid_id = "drf_gr4",
                       training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
                       seed = 1000000)
 
-# выводим результаты решетчатого поиска
-summary(drf_grid4)
-
-# сортируем по AUC
-sorted_drf_grid4 <- h2o.getGrid("drf_gr4", sort_by = "auc", decreasing = TRUE)
+# сортируем результаты по AUC
+sorted_drf_grid4 <- h2o.getGrid("drf_grid4", sort_by = "auc", decreasing = TRUE)
 
 # выводим результаты решетчатого поиска,
 # отсортировав по убыванию AUC
 sorted_drf_grid4
 
-
+# выполняем решетчатый поиск, меняя тип
+# кодировки категориальных предикторов
 hyper_parameters5 <- list(categorical_encoding = c("Enum", "Binary", "Eigen", "LabelEncoder", 
                                                    "SortByResponse", "EnumLimited"))
-drf_grid5 <- h2o.grid(algorithm = "drf", grid_id = "drf_gr5", 
+drf_grid5 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid5", 
                       hyper_params = hyper_parameters5,
                       ntrees = 800, max_depth=10, min_rows=1, mtries=4, sample_rate=0.2,
                       histogram_type="QuantilesGlobal",
@@ -601,18 +599,18 @@ drf_grid5 <- h2o.grid(algorithm = "drf", grid_id = "drf_gr5",
                       training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
                       seed = 1000000)
 
-# выводим результаты решетчатого поиска
-summary(drf_grid5)
-
-# сортируем по AUC
-sorted_drf_grid5 <- h2o.getGrid("drf_gr5", sort_by = "auc", decreasing = TRUE)
+# сортируем результаты по AUC
+sorted_drf_grid5 <- h2o.getGrid("drf_grid5", sort_by = "auc", decreasing = TRUE)
 
 # выводим результаты решетчатого поиска,
 # отсортировав по убыванию AUC
 sorted_drf_grid5
 
+# выполняем решетчатый поиск, меняя количество
+# интервалов в гистограмме расщепляющих значений
+# для количественных признаков
 hyper_parameters6 <- list(nbins = c(2, 4, 6, 8, 10))
-drf_grid6 <- h2o.grid(algorithm = "drf", grid_id = "drf_g6", 
+drf_grid6 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid6", 
                       hyper_params = hyper_parameters6,
                       ntrees = 800, max_depth=10, min_rows=1, mtries=4, sample_rate=0.2,
                       histogram_type="QuantilesGlobal", categorical_encoding="EnumLimited",
@@ -621,17 +619,16 @@ drf_grid6 <- h2o.grid(algorithm = "drf", grid_id = "drf_g6",
                       training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
                       seed = 1000000)
 
-# выводим результаты решетчатого поиска
-summary(drf_grid6)
-
-# сортируем по AUC
-sorted_drf_grid6 <- h2o.getGrid("drf_g6", sort_by = "auc", decreasing = TRUE)
+# сортируем результаты по AUC
+sorted_drf_grid6 <- h2o.getGrid("drf_grid6", sort_by = "auc", decreasing = TRUE)
 
 # выводим результаты решетчатого поиска,
 # отсортировав по убыванию AUC
 sorted_drf_grid6
 
-
+# строим модель с параметрами, найденными в ходе предыдущих
+# итераций решетчатого поиска, увеличив число деревьев и
+# уменьшив глубину
 drf2 <- h2o.randomForest(ntrees = 1000, max_depth = 8, min_rows = 1,
                          mtries=4, sample_rate = 0.2,
                          histogram_type="QuantilesGlobal", 
@@ -641,8 +638,6 @@ drf2 <- h2o.randomForest(ntrees = 1000, max_depth = 8, min_rows = 1,
                          training_frame = train, validation_frame = valid, 
                          x=c(2:65), y=1, seed = 1000000)
 summary(drf2)
-
-
 
 # преобразовываем весь обучающий набор и итоговый тестовый набор
 # перевыгружаем данные
