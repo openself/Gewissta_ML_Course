@@ -414,7 +414,6 @@ newFeaturesData <-
         CHILD_DEPENDANTS = ifelse(is.nan(CHILD_DEPENDANTS), 0, CHILD_DEPENDANTS),
         AUTO_FOR_FL = as.factor(ifelse(AUTO_RUS_FL == 0 & OWN_AUTO > 0, 1, 0)),
         CREDIT2=log(CREDIT),
-        TERM2 = as.factor(TERM),
         WORK_TIME2=log(WORK_TIME+0.01),
         FACT_LIVING_TERM=log(FACT_LIVING_TERM+0.01),
         PAYMENT = CREDIT/TERM,
@@ -475,9 +474,8 @@ str(testing)
 # перед загрузкой библиотеки h2o убедитесь, что библиотека h2o установлена 
 # (сначала установите Java SE Development Kit 8, обратите внимание, 
 # 9-я версия H2O не поддерживается, а затем после установки Java 
-# установите пакет h2o с помощью команды
-# install.packages("h2o", type="source", repos=(c("http://h2o-release.s3.amazonaws.com/h2o/latest_stable_R"))) и
-# затем загрузите библиотеку)
+# установите пакет h2o с помощью команды install.packages("h2o")
+# и затем загрузите библиотеку)
 library(h2o)
 h2o.init(nthreads=-1, max_mem_size = "8G")
 
@@ -574,10 +572,180 @@ glm3 <- h2o.glm(family= "binomial", training_frame = TrainValid,
                 x=c(2:65), y=1, alpha = 0.1, lambda = 0.001844,
                 interactions=c("GENDER", "EDUCATION", "REGION_NM",
                                "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
-                               "FACT_TP_FL", "TERM2", "GEN_PHONE_FL"),
+                               "FACT_TP_FL", "GEN_PHONE_FL"),
                 nfolds=5, keep_cross_validation_predictions=TRUE,
                 seed = 1000000)
 glm3
+
+# строим модель случайного леса, все значения
+# параметров взяты по умолчанию, ntrees - количество 
+# деревьев, max_depth - глубина, min_rows - 
+# количество наблюдений в терминальном узле, 
+# mtries - количество случайно отбираемых предикторов
+# sample_rate - процент отобранных строк для построения дерева,
+# col_sample_rate - процент случайно отбираемых столбцов 
+# для каждого разбиения узла, col_sample_rate_per_tree -
+# процент случайно отбираемых столбцов для каждого дерева,
+# col_sample_rate_per_tree - относительное изменение 
+# отбора столбцов для каждого уровня дерева
+drf1 <- h2o.randomForest(training_frame = train, validation_frame = valid, 
+                         x=c(2:65), y=1, seed = 1000000)
+
+# выводим информацию о модели
+summary(drf1)
+
+# выполняем решетчатый поиск, меняя глубину
+hyper_parameters <- list(max_depth=c(6, 8, 10, 12, 14, 16))
+drf_grid <- h2o.grid(algorithm = "drf", grid_id = "drf_grid", 
+                     hyper_params = hyper_parameters,
+                     ntrees = 800, min_rows=1,
+                     sample_rate = 1,
+                     col_sample_rate_change_per_level = 1, 
+                     col_sample_rate_per_tree = 1,
+                     training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                     seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_drf_grid <- h2o.getGrid("drf_grid", sort_by = "auc", decreasing = TRUE)
+sorted_drf_grid
+
+# выполняем решетчатый поиск, меняя количество
+# случайно отбираемых предикторов
+hyper_parameters2 <- list(mtries=c(4, 6, 8, 10, 12))
+drf_grid2 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid2", 
+                      hyper_params = hyper_parameters2,
+                      ntrees = 800, max_depth=10, min_rows=1, sample_rate=1,
+                      col_sample_rate_change_per_level = 1, 
+                      col_sample_rate_per_tree = 1,
+                      training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                      seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_drf_grid2 <- h2o.getGrid("drf_grid2", sort_by = "auc", decreasing = TRUE)
+sorted_drf_grid2
+
+# выполняем решетчатый поиск, меняя количество
+# случайно отбираемых строк (наблюдений)
+hyper_parameters3 <- list(sample_rate=c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1))
+drf_grid3 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid3", 
+                      hyper_params = hyper_parameters3,
+                      ntrees = 800, max_depth=10, min_rows=1, mtries=4,
+                      col_sample_rate_change_per_level = 1, 
+                      col_sample_rate_per_tree = 1,
+                      training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                      seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_drf_grid3 <- h2o.getGrid("drf_grid3", sort_by = "auc", decreasing = TRUE)
+sorted_drf_grid3
+
+# выполняем решетчатый поиск, меняя тип
+# гистограммы расщепляющих значений
+hyper_parameters4 <- list(histogram_type=c("UniformAdaptive", "Random", "QuantilesGlobal", "RoundRobin"))
+drf_grid4 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid4", 
+                      hyper_params = hyper_parameters4,
+                      ntrees = 800, max_depth=10, min_rows=1, mtries=4, sample_rate=0.2,
+                      col_sample_rate_per_tree = 1,
+                      col_sample_rate_change_per_level = 1, 
+                      training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                      seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_drf_grid4 <- h2o.getGrid("drf_grid4", sort_by = "auc", decreasing = TRUE)
+sorted_drf_grid4
+
+# выполняем решетчатый поиск, меняя тип
+# кодировки категориальных предикторов
+hyper_parameters5 <- list(categorical_encoding = c("Enum", "Binary", "Eigen", "LabelEncoder", 
+                                                   "SortByResponse", "EnumLimited"))
+drf_grid5 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid5", 
+                      hyper_params = hyper_parameters5,
+                      ntrees = 800, max_depth=10, min_rows=1, mtries=4, sample_rate=0.2,
+                      histogram_type="QuantilesGlobal",
+                      col_sample_rate_per_tree = 1,
+                      col_sample_rate_change_per_level = 1,
+                      training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                      seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_drf_grid5 <- h2o.getGrid("drf_grid5", sort_by = "auc", decreasing = TRUE)
+sorted_drf_grid5
+
+# выполняем решетчатый поиск, меняя количество
+# интервалов в гистограмме расщепляющих значений
+# для количественных признаков
+hyper_parameters6 <- list(nbins = c(2, 4, 6, 8, 10))
+drf_grid6 <- h2o.grid(algorithm = "drf", grid_id = "drf_grid6", 
+                      hyper_params = hyper_parameters6,
+                      ntrees = 800, max_depth=10, min_rows=1, mtries=4, sample_rate=0.2,
+                      histogram_type="QuantilesGlobal", categorical_encoding="EnumLimited",
+                      col_sample_rate_per_tree = 1,
+                      col_sample_rate_change_per_level = 1,
+                      training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                      seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_drf_grid6 <- h2o.getGrid("drf_grid6", sort_by = "auc", decreasing = TRUE)
+sorted_drf_grid6
+
+# строим модель с параметрами, найденными в ходе предыдущих
+# итераций решетчатого поиска, увеличив число деревьев и
+# уменьшив глубину
+drf2 <- h2o.randomForest(ntrees = 1000, max_depth = 8, min_rows = 1,
+                         mtries=4, sample_rate = 0.2,
+                         histogram_type="QuantilesGlobal", 
+                         categorical_encoding="EnumLimited",
+                         nbins=4, col_sample_rate_change_per_level = 1, 
+                         col_sample_rate_per_tree = 1,
+                         training_frame = train, validation_frame = valid, 
+                         x=c(2:65), y=1, seed = 1000000)
+summary(drf2)
+
+# строим модель градиентного бустинга, перечислены 
+# значения параметров по умолчанию: learn_rate -
+# темп обучения, ntrees - количество деревьев (итераций),
+# max_depth - глубина, min_rows - количество
+# наблюдений в терминальном узле, sample_rate -
+# процент отобранных строк для построения дерева,
+# col_sample_rate - процент случайно отбираемых столбцов 
+# для каждого разбиения узла, col_sample_rate_per_tree -
+# процент случайно отбираемых столбцов для каждого дерева,
+# col_sample_rate_per_tree - относительное изменение 
+# отбора столбцов для каждого уровня дерева
+gbm1 <- h2o.gbm(learn_rate=0.1, ntrees = 50, max_depth = 5, min_rows = 10,
+                sample_rate = 1, col_sample_rate = 1,
+                col_sample_rate_change_per_level = 1, 
+                col_sample_rate_per_tree = 1,
+                training_frame = train, validation_frame = valid, 
+                x=c(2:65), y=1, seed = 1000000)
+
+summary(gbm1)
+
+# выполняем решетчатый поиск, при этом уменьшаем
+# глубину и увеличиваем количество наблюдений в
+# листьях, пробуем найти оптимальную сложность
+# путем комбинирования learn_rate и ntrees, а
+# также пробуем внести рандомизацию, перебирая
+# небольшие значения col_sample_rate и
+# col_sample_rate_per_tree
+hyper_parameters <- list(learn_rate = c(0.1, 0.15, 0.2), 
+                         ntrees=c(50, 55, 60, 65, 70),
+                         col_sample_rate=c(0.14, 0.16, 0.18, 0.20),
+                         col_sample_rate_per_tree=c(0.15, 0.25, 0.35))
+gbm_grid <- h2o.grid(algorithm = "gbm", grid_id = "gbm_grid", 
+                     hyper_params = hyper_parameters, max_depth=2, min_rows=125,
+                     training_frame = train, validation_frame = valid, x = c(2:65), y = "TARGET",
+                     seed = 1000000)
+
+# сортируем результаты по AUC
+sorted_gbm_grid <- h2o.getGrid("gbm_grid", sort_by = "auc", decreasing = TRUE)
+sorted_gbm_grid
+
+# запоминаем параметры оптимальной модели,
+# найденной с помощью решетчатого поиска
+# Hyper-Parameter Search Summary: ordered by decreasing auc
+# col_sample_rate col_sample_rate_per_tree learn_rate ntrees          model_ids                auc
+#             0.2                     0.35       0.15     65 gbm_grid_model_131 0.6858967932546238
 
 # преобразовываем весь обучающий набор и итоговый тестовый набор
 # перевыгружаем данные
@@ -649,15 +817,41 @@ tr <- as.h2o(OTPset)
 val <- as.h2o(OTPset_test)
 
 # обучаем модель логистической регрессии на всем обучающем наборе
-# проверяем на тестовом наборе
+# проверяем на настоящем тестовом наборе
 glm_full <- h2o.glm(family= "binomial", training_frame = tr, validation_frame = val, 
                     x=c(2:65), y=1, seed = 1000000, alpha = 0.1, lambda = 0.001844,
                     interactions=c("GENDER", "EDUCATION", "REGION_NM",
                                    "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
-                                   "FACT_TP_FL", "TERM2", "GEN_PHONE_FL"))
+                                   "FACT_TP_FL", "GEN_PHONE_FL"))
 # смотрим модель
 glm_full
 
+# строим модель случайного леса на всем обучающем 
+# наборе и проверяем на настоящем тестовом наборе
+drf_full <- h2o.randomForest(ntrees = 1000, max_depth = 8, min_rows = 1,
+                             mtries=4, sample_rate = 0.2,
+                             histogram_type="QuantilesGlobal", 
+                             categorical_encoding="EnumLimited",
+                             nbins=4,
+                             col_sample_rate_change_per_level = 1, 
+                             col_sample_rate_per_tree = 1,
+                             training_frame = tr, validation_frame = val, 
+                             x=c(2:65), y=1, seed = 1000000)
+
+# смотрим модель
+drf_full
+
+# строим модель градиентного бустинга на всем обучающем 
+# наборе и проверяем на настоящем тестовом наборе
+gbm_full <- h2o.gbm(learn_rate=0.15, ntrees = 65, max_depth = 2, min_rows=125,
+                    sample_rate = 1, col_sample_rate = 0.2,
+                    col_sample_rate_change_per_level = 1, 
+                    col_sample_rate_per_tree = 0.35,
+                    training_frame = tr, validation_frame = val,
+                    x=c(2:65), y=1, seed = 1000000)
+
+# смотрим модель
+summary(gbm_full)
+
 # завершаем сеанс H2O
 h2o.shutdown()
-

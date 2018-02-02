@@ -10,23 +10,29 @@
 # Лекция 2.2 Предварительная подготовка данных перед построением  модели дерева CHAID
 # 2.2.1 Загрузка данных
 
-# задаем постоянный CRAN репозиторий
-cat(".Rprofile: Setting US repositoryn")
-r = getOption("repos")
-r["CRAN"] = "http://cran.us.r-project.org"
-options(repos = r)
-rm(r)
+# этот блок программного кода только для 
+# консольной версии R
+# задаем постоянный CRAN репозиторий, 
+# для запуска кода убрать символ # в начале
+# каждой строки программного кода 
+# cat(".Rprofile: Setting US repositoryn")
+# r = getOption("repos")
+# r["CRAN"] = "http://cran.us.r-project.org"
+# options(repos = r)
+# rm(r)
+
 
 # устанавливаем пакеты
-install.packages("dplyr")
-install.packages("Hmisc")
-install.packages("car")
-install.packages("imputeMissings")
-install.packages("lsr")
-install.packages("CHAID", repos="http://R-Forge.R-project.org")
-install.packages("pROC")
-install.packages("xlsx")
-install.packages("stringr")
+# install.packages("dplyr")
+# install.packages("Hmisc")
+# install.packages("stringr")
+# install.packages("car")
+# install.packages("imputeMissings")
+# install.packages("lsr")
+# install.packages("CHAID", repos="http://R-Forge.R-project.org")
+# install.packages("pROC")
+# install.packages("precrec")
+# install.packages("xlsx")
 
 
 # считываем CSV-файл в датафрейм data
@@ -83,7 +89,7 @@ data$agecat <- ordered(data$agecat,
 # загружаем пакет dplyr 
 library(dplyr)
 # c помощью функции recode пакета dplyr
-# переименовываем категории переменной marital_status
+# переименовываем категории переменной churn
 data$churn <- recode(data$churn, "0"="Остается", "1"="Уходит")
 
 # отсоединяем пакет dplyr
@@ -764,16 +770,24 @@ Recall=427/(427+171)
 F1_score = (2*Precision*Recall)/(Precision + Recall)
 F1_score
 
+# вычисляем вероятности положительного класса для 
+# построения ROC-кривой и вычисления AUC-ROC
 probs <- predict(chd3, holdout, type="prob")
 
+# загружаем пакет precrec
 library(precrec)
-sscurves <- evalmod(scores = probs[,2], labels = holdout$churn)
-sscurves
 
-plot(sscurves)
+# вычисляем AUC-ROC и AUC-PR для нашей модели
+curves <- evalmod(scores = probs[,2], labels = holdout$churn)
+curves
 
+# строим ROC-кривую и PR-кривую
+# для нашей модели
+plot(curves)
+
+# улучшаем внешний вид графиков
 library(ggplot2)
-
+autoplot(curves)
 
 
 
