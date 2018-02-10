@@ -1,0 +1,6 @@
+"0","# добавляем в уже существующий график ROC-кривую"
+"0","# для контрольной выборки"
+"0","roc_hold <-plot.roc(holdout$response, prob_hold[,2], "
+"0","                    ci=TRUE, percent=TRUE,"
+"0","                    print.auc=TRUE, print.auc.x=50, print.auc.y=45, "
+"0","                    col=""purple"", add=TRUE)"

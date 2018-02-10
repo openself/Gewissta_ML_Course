@@ -1,0 +1,5 @@
+"0","library(lsr)"
+"0","development$binned2 <- quantileCut(x=development$age, n=10, "
+"0","                                   include.lowest=TRUE, right=TRUE, "
+"0","                                   ordered_result=TRUE, dig.lab=0)"
+"0","detach(""package:lsr"", unload=TRUE)"

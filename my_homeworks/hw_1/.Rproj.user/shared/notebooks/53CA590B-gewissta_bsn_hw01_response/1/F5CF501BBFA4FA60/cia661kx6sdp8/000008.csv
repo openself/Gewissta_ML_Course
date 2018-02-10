@@ -1,0 +1,66 @@
+"0","# выводим диаграмму дерева"
+"0","# в схематичном виде"
+"0","print(chd)"
+"1","
+Model formula:
+response ~ mortgage + life_ins + cre_card + deb_card + mob_bank + 
+    curr_acc + internet + perloan + savings + atm_user + markpl + 
+    age + cus_leng
+
+Fitted party:
+"
+"1","[1] root"
+"1","
+"
+"1","|   [2] cus_leng in 1
+"
+"1","|   |   [3] atm_user in 0
+"
+"1","|   |   |   [4] mortgage in 0: Да (n = 873, err = 4.0%)
+"
+"1","|   |   |   [5] mortgage in 1: Да (n = 713, err = 10.9%)
+"
+"1","|   |   [6] atm_user in 1
+"
+"1","|   |   |   [7] curr_acc in 0: Да (n = 391, err = 8.4%)
+"
+"1","|   |   |   [8] curr_acc in 1: Да (n = 745, err = 30.3%)
+"
+"1","|   [9] cus_leng in 2
+"
+"1","|   |   [10] age in [18,28]: Да (n = 588, err = 30.1%)
+"
+"1","|   |   [11] age in (28,31], (31,34]: Да (n = 969, err = 35.1%)
+"
+"1","|   |   [12] age in (34,37], (37,41], (41,44]
+"
+"1","|   |   |   [13] atm_user in 0: Да (n = 944, err = 31.8%)
+"
+"1","|   |   |   [14] atm_user in 1: Нет (n = 814, err = 49.9%)
+"
+"1","|   |   [15] age in (44,47], (47,51], (51,55]
+"
+"1","|   |   |   [16] curr_acc in 0: Да (n = 247, err = 39.3%)
+"
+"1","|   |   |   [17] curr_acc in 1
+"
+"1","|   |   |   |   [18] markpl in 0: Да (n = 580, err = 49.8%)
+"
+"1","|   |   |   |   [19] markpl in 1: Нет (n = 915, err = 42.1%)
+"
+"1","|   |   [20] age in (55,63], (63,Inf]: Нет (n = 430, err = 33.0%)
+"
+"1","|   [21] cus_leng in 3
+"
+"1","|   |   [22] age in [18,28]: Нет (n = 132, err = 24.2%)
+"
+"1","|   |   [23] age in (28,31], (31,34], (34,37], (37,41], (41,44]: Нет (n = 495, err = 14.1%)
+"
+"1","|   |   [24] age in (44,47], (47,51], (51,55]: Нет (n = 563, err = 7.6%)
+"
+"1","|   |   [25] age in (55,63], (63,Inf]: Нет (n = 422, err = 3.8%)
+"
+"1","
+Number of inner nodes:     9
+Number of terminal nodes: 16
+"

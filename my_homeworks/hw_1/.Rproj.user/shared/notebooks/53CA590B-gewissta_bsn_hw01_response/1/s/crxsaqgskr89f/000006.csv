@@ -1,0 +1,7 @@
+"0","library(CHAID)"
+"0","# задаем набор условий для построения дерева CHAID"
+"0","params <- chaid_control(minprob = 0.01, minsplit = 1000, minbucket = 500)"
+"0","# строим модель дерева CHAID"
+"0","chd  <- chaid(response ~ ., control = params, development)"
+"0","# выводим диаграмму дерева"
+"0","plot(chd)"

@@ -1,0 +1,8 @@
+"0","# вычисляем вероятности классов для обучающей"
+"0","# выборки и записываем в объект prob_dev"
+"0","prob_dev <- predict(chd, development, type=""prob"")"
+"0","# строим график ROC-кривой для обучающей выборки"
+"0","roc_dev <-plot.roc(development$response, prob_dev[,2], "
+"0","                   main=""График ROC-кривой для модели CHAID"","
+"0","                   ci=TRUE, percent=TRUE,"
+"0","                   print.auc=TRUE, col=""red"")"

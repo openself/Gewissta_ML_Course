@@ -1,0 +1,313 @@
+# задаем постоянный CRAN репозиторий
+cat(".Rprofile: Setting US repositoryn")
+r = getOption("repos")
+r["CRAN"] = "http://cran.us.r-project.org"
+options(repos = r)
+rm(r)
+
+# устанавливаем пакеты
+install.packages("dplyr")
+install.packages("Hmisc")
+install.packages("car")
+install.packages("imputeMissings")
+install.packages("lsr")
+install.packages("partykit")
+install.packages("CHAID", repos="http://R-Forge.R-project.org")
+install.packages("pROC")
+install.packages("xlsx")
+install.packages("stringr")
+
+# 1. Загрузка данных
+
+# считываем CSV-файл в датафрейм data
+data <- read.csv2("Response.csv", sep=";")
+
+# смотрим первые 10 наблюдений датафрейма data
+head(data, 10)
+
+# расшифровка переменных
+# номинальный предиктор Ипотечный кредит [mortgage];
+# номинальный предиктор Страхование жизни [life_ins];
+# номинальный предиктор Кредитная карта [cre_card];
+# номинальный предиктор Дебетовая карта [deb_card];
+# номинальный предиктор Мобильный банк [mob_bank];
+# номинальный предиктор Текущий счет [curr_acc];
+# номинальный предиктор Интернет-доступ к счету [internet];
+# номинальный предиктор Индивидуальный займ [perloan];
+# номинальный предиктор Наличие сбережений [savings];
+# номинальный предиктор Пользование банкоматом за последнюю неделю [atm_user];
+# номинальный предиктор Пользование услугами онлайн-маркетплейса за последний месяц [markpl];
+# количественный предиктор Возраст [age];
+# порядковый предиктор Давность клиентской истории [cus_leng];
+# номинальная зависимая переменная Отклик на предложение новой карты [response]
+
+# выводим количество пропусков
+sum(is.na(data))
+data[!complete.cases(data),]
+
+# смотрим типы переменных
+str(data)
+
+# 2 Изменение типов переменных
+
+# преобразовываем зависимую переменную Отклик (response) в вектор типа factor 
+data$response <- as.factor(data$response)
+
+# преобразовываем порядковый предиктор Давность клиентской истории [cus_leng]
+# в вектор типа ordered factor 
+data$cus_leng <- ordered(data$cus_leng, 
+                         levels = c("1", "2", "3"))
+
+# преобразовываем количественный предиктор Возраст [age] в вектор типа numeric 
+data$age <- as.numeric(data$age)
+
+# преобразовываем все номинальные предикторы в вектора типа factor 
+data[] <- lapply(data, function(x) if(is.integer(x)) as.factor(x) else x)
+
+# загружаем пакет dplyr 
+library(dplyr)
+# c помощью функции recode пакета dplyr
+# переименовываем категории переменной marital_status
+data$response <- recode(data$response, "0"="Нет", "1"="Да")
+
+# отсоединяем пакет dplyr
+detach("package:dplyr", unload=TRUE)
+
+str(data)
+
+# смотрим дублирующиеся наблюдения
+data[duplicated(data),]
+
+# оставим только уникальные наблюдения  
+data <- unique(data)
+# смотрим, сколько наблюдений мы
+# теперь будем использовать  
+nrow(data)
+
+# 3 Обработка редких категорий
+
+# выводим информацию о распределении
+# значений переменной cus_leng
+summary(data$cus_leng)
+# объектов со значением 2 больше, чем 1 и 3. Но редких категорий не наблюдается
+
+# 4 Однократное случайное разбиение набора данных на обучающую 
+# и контрольную выборки для проверки модели
+# разбиваем набор данных на случайную 
+# и контрольную выборки
+
+set.seed(42)
+
+data$random_number <- runif(nrow(data),0,1)
+development <- data[ which(data$random_number > 0.3), ]
+holdout <- data[ which(data$random_number <= 0.3), ]
+
+data$random_number <- NULL
+development$random_number <- NULL
+holdout$random_number <- NULL
+
+# смотрим обучающий датафрейм
+str(development)
+
+# смотрим контрольный датафрейм
+str(holdout)
+
+# выводим информацию о распределении
+# классов зависимой переменной response
+# в обучающей выборке
+summary(development$response)
+
+# выводим информацию о распределении
+# классов зависимой переменной response
+# в контрольной выборке
+summary(holdout$response)
+
+# 5 Биннинг количественных переменных для получения порядковых предикторов
+
+# выводим диапазон значений 
+# переменной age
+range(development$age)
+
+# разбиваем переменную age на 9 интервалов
+# одинаковой ширины
+development$binned <-cut(x=development$age, breaks=seq(18, 63, by=5), 
+                         include.lowest=TRUE, right=TRUE, 
+                         ordered_result=TRUE, dig.lab = 0)
+
+# смотрим распределение значений
+# переменной binned
+summary(development$binned)
+
+# загружаем пакет lsr
+library(lsr)
+# с помощью функции quantileCut пакета lsr разбиваем
+# переменную age на 10 интервалов c одинаковым
+# количеством наблюдений
+development$binned2 <- quantileCut(x=development$age, n=10, 
+                                   include.lowest=TRUE, right=TRUE, 
+                                   ordered_result=TRUE, dig.lab=0)
+
+# смотрим распределение значений
+# переменной binned2
+summary(development$binned2)
+
+# смотрим типы переменных
+str(development)
+
+# удаляем только что созданные переменные
+development$binned <- NULL
+development$binned2 <- NULL
+
+# выполняем биннинг с учетом полученных правил разбиения
+development$age <-cut(x=development$age, 
+                         breaks=c(18,28,31,34,
+                                  37,41,44,47,
+                                  51,55,63,+Inf), 
+                         include.lowest=TRUE, 
+                         ordered_result=TRUE)
+
+holdout$age <-cut(x=holdout$age, 
+                          breaks=c(18,28,31,34,
+                                   37,41,44,47,
+                                   51,55,63,+Inf), 
+                          include.lowest=TRUE, 
+                          ordered_result=TRUE)
+
+# 6 Построение модели дерева CHAID и ее проверка
+# загружаем пакет CHAID
+library(CHAID)
+
+# задаем набор условий для построения дерева CHAID
+params <- chaid_control(minprob = 0.01, minsplit = 1000, minbucket = 500)
+# строим модель дерева CHAID
+chd  <- chaid(response ~ ., control = params, development)
+
+# выводим диаграмму дерева
+plot(chd)
+
+# выводим диаграмму дерева
+# в схематичном виде
+print(chd)
+
+# 7 Получение прогнозов модели
+
+# выводим спрогнозированные вероятности отрицательного
+# класса для первых 10 наблюдений
+# контрольной выборки
+prob_hold <- predict(chd, holdout, type="prob")
+prob_hold[1:10]
+
+# округляем спрогнозированные вероятности
+# до второго десятичного знака
+round(prob_hold[1:10], 2)
+
+# извлекаем правила разбиения,
+# полученные нашей моделью
+library(partykit)
+treetable <- function(party_tree) {
+  
+  df_list <- list()
+  var_names <-  attr(party_tree$terms, "term.labels")
+  var_levels <- lapply(party_tree$data, levels)
+  
+  walk_the_tree <- function(node, rule_branch = NULL) {
+    # проходим структуру разбиений дерева (рекурсивная функция)
+    # извлекаем правила для каждой ветви
+    if(missing(rule_branch)) {
+      rule_branch <- setNames(data.frame(t(replicate(length(var_names), NA))), var_names)
+      rule_branch <- cbind(rule_branch, nodeId = NA)
+      rule_branch <- cbind(rule_branch, predict = NA)
+    }
+    if(is.terminal(node)) {
+      rule_branch[["nodeId"]] <- node$id
+      rule_branch[["predict"]] <- predict_party(party_tree, node$id, type="prob") 
+      
+      
+      df_list[[as.character(node$id)]] <<- rule_branch
+    } else {
+      for(i in 1:length(node)) {
+        rule_branch1 <- rule_branch
+        val1 <- decision_rule(node,i)
+        rule_branch1[[names(val1)[1]]] <- val1
+        walk_the_tree(node[i], rule_branch1)
+      }
+    }
+  }
+  
+  decision_rule <- function(node, i) {
+    # возвращаем правила разбиения в датафрейм вместе с названиями переменных и значениями
+    var_name <- var_names[node$split$varid[[1]]]
+    values_vec <- var_levels[[var_name]][ node$split$index == i]
+    values_txt <- paste(values_vec, collapse = ", ")
+    return( setNames(values_txt, var_name))
+  }
+  walk_the_tree(party_tree$node)
+  res_table <- Reduce(rbind, df_list)
+  return(res_table)
+}
+
+table <- treetable(chd)
+table
+
+# задаем стартовое значение генератора
+# случайных чисел для воспроизводимости
+set.seed(42)
+
+# выводим спрогнозированные классы
+# для первых 10 наблюдений
+# контрольной выборки
+predvalue_hold <- predict(chd_holdout, holdout, type="response")
+predvalue_hold[1:10]
+
+# строим таблицу классификации
+table(holdout$response, predvalue_hold)
+
+# 8 Работа с матрицей ошибок
+
+# снижаем пороговое значение спрогнозированной
+# вероятности положительного класса до 0.3
+table(holdout$response == "Да", predict(chd_holdout, 
+                                         holdout, type="prob")[,"Да"] >= 0.30)
+
+# повышаем пороговое значение спрогнозированной
+# вероятности положительного класса до 0.7
+table(holdout$response == "Да", predict(chd_holdout, 
+                                         holdout, type="prob")[,"Да"] >= 0.70)
+
+# 9 ROC и AUC
+
+# загружаем пакет pROC 
+library(pROC)
+
+# выводим AUC нашей модели дерева
+# для контрольной выборки
+roc_hold <- roc(holdout$response, prob_hold[,2])
+roc_hold
+
+# строим ROC-кривую нашей модели дерева
+# для контрольной выборки
+roc_hold <- roc(holdout$response, prob_hold[,2])
+roc_hold
+plot.roc(roc_hold)
+
+
+# вычисляем вероятности классов для обучающей
+# выборки и записываем в объект prob_dev
+prob_dev <- predict(chd, development, type="prob")
+
+# строим график ROC-кривой для обучающей выборки
+roc_dev <-plot.roc(development$response, prob_dev[,2], 
+                   main="График ROC-кривой для модели CHAID",
+                   ci=TRUE, percent=TRUE,
+                   print.auc=TRUE, col="red")
+
+# добавляем в уже существующий график ROC-кривую
+# для контрольной выборки
+roc_hold <-plot.roc(holdout$response, prob_hold[,2], 
+                    ci=TRUE, percent=TRUE,
+                    print.auc=TRUE, print.auc.x=50, print.auc.y=45, 
+                    col="purple", add=TRUE)
+
+# добавляем легенды
+legend("bottomright", legend=c("Обучающая выборка", "Контрольная выборка"), 
+       col=c("red", "purple"), lwd=2)

@@ -1,0 +1,7 @@
+"0","set.seed(42)"
+"0","data$random_number <- runif(nrow(data),0,1)"
+"0","development <- data[ which(data$random_number > 0.3), ]"
+"0","holdout <- data[ which(data$random_number <= 0.3), ]"
+"0","data$random_number <- NULL"
+"0","development$random_number <- NULL"
+"0","holdout$random_number <- NULL"

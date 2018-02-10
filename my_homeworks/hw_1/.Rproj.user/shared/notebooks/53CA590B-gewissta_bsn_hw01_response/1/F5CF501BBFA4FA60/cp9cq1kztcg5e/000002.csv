@@ -1,0 +1,2 @@
+"0","data$cus_leng <- ordered(data$cus_leng, "
+"0","                         levels = c(""1"", ""2"", ""3""))"

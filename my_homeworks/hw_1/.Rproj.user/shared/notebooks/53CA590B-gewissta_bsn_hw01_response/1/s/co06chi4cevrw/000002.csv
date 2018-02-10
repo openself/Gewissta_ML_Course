@@ -1,0 +1,18 @@
+"0","library(dplyr)"
+"2","пакет СdplyrТ был собран под R версии 3.4.3"
+"2","
+ѕрисоедин€ю пакет: СdplyrТ
+
+"
+"2","—ледующие объекты скрыты от Сpackage:statsТ:
+
+    filter, lag
+
+"
+"2","—ледующие объекты скрыты от Сpackage:baseТ:
+
+    intersect, setdiff, setequal, union
+
+"
+"0","data$response <- recode(data$response, ""0""=""–Э–µ—В"", ""1""=""–Ф–∞"")"
+"0","detach(""package:dplyr"", unload=TRUE)"

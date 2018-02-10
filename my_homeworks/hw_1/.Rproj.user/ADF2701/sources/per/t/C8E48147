@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1517389318617.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "707978426",
+    "id" : "C8E48147",
+    "lastKnownWriteTime" : 1517339616,
+    "last_content_update" : 1517339616,
+    "path" : "C:/work/hw_1/Программный код для выполнения ДЗ.R",
+    "project_path" : "Программный код для выполнения ДЗ.R",
+    "properties" : {
+        "cursorPosition" : "515,26",
+        "scrollLine" : "497"
+    },
+    "relative_order" : 2,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

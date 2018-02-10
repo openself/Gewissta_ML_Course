@@ -1,0 +1,1 @@
+"0","data[] <- lapply(data, function(x) if(is.integer(x)) as.factor(x) else x)"

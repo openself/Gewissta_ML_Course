@@ -1,0 +1,6 @@
+"0","cat("".Rprofile: Setting US repositoryn"")"
+"1",".Rprofile: Setting US repositoryn"
+"0","r = getOption(""repos"")"
+"0","r[""CRAN""] = ""http://cran.us.r-project.org"""
+"0","options(repos = r)"
+"0","rm(r)"

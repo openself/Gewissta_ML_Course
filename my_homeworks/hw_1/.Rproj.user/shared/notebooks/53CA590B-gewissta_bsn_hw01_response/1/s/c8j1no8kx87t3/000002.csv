@@ -1,0 +1,3 @@
+"0","development$binned <-cut(x=development$age, breaks=seq(18, 63, by=5), "
+"0","                         include.lowest=TRUE, right=TRUE, "
+"0","                         ordered_result=TRUE, dig.lab = 0)"
