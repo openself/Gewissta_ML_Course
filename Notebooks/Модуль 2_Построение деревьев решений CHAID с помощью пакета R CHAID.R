@@ -770,15 +770,11 @@ Recall=427/(427+171)
 F1_score = (2*Precision*Recall)/(Precision + Recall)
 F1_score
 
-# вычисляем вероятности положительного класса для 
-# построения ROC-кривой и вычисления AUC-ROC
-probs <- predict(chd3, holdout, type="prob")
-
 # загружаем пакет precrec
 library(precrec)
 
 # вычисляем AUC-ROC и AUC-PR для нашей модели
-curves <- evalmod(scores = probs[,2], labels = holdout$churn)
+curves <- evalmod(scores = prob_hold3[,2], labels = holdout$churn)
 curves
 
 # строим ROC-кривую и PR-кривую
@@ -788,8 +784,6 @@ plot(curves)
 # улучшаем внешний вид графиков
 library(ggplot2)
 autoplot(curves)
-
-
 
 # 2.3.8 Многократное случайное разбиение на обучающую 
 # и контрольную выборки как способ проверки модели
@@ -890,10 +884,10 @@ for (i in 1:100) {
 # выводим среднее значение AUC для двух моделей
 # на контрольной выборке по результатам 100
 # случайных разбиений «обучение-контроль»
-results <- c(mean(chaid1.auc), mean(chaid2.auc))
-names(results) <- c("Mean AUC minsplit=1000 и minbucket=500", 
-                    "Mean AUC minsplit=200 и minbucket=100")
-results
+mean_results <- c(mean(chaid1.auc), mean(chaid2.auc))
+names(mean_results) <- c("Mean AUC minsplit=1000 и minbucket=500", 
+                         "Mean AUC minsplit=200 и minbucket=100")
+mean_results
 
 # вычисляем 95%-ный доверительный интервал 
 # AUC для каждой модели
@@ -1042,15 +1036,22 @@ for(i in 1:R){
   
 }
 
+# вычисляем усредненные оценки AUC моделей
+mean_results <- c(mean(chaid1.auc_boot), 
+                  mean(chaid2.auc_boot))
+names(mean_results) <- c("Mean AUC CHAID minsplit=1000 и minbucket=500", 
+                         "Mean AUC CHAID minsplit=200 и minbucket=100")
+mean_results
+
 # вычисляем бутстрепированный 95%-ный доверительный интервал 
 # AUC для каждой модели
 chaid1.ci = quantile(chaid1.auc_boot,c(.025,.975))
 chaid2.ci = quantile(chaid2.auc_boot,c(.025,.975))
 
-results <- list(chaid1.ci, chaid2.ci)
-names(results) <- c("bootstrapped 95% CI AUC minsplit=1000 и minbucket=500", 
+ci_results <- list(chaid1.ci, chaid2.ci)
+names(ci_results) <- c("bootstrapped 95% CI AUC minsplit=1000 и minbucket=500", 
                     "bootstrapped 95% CI AUC minsplit=200 и minbucket=100")
-results
+ci_results
 
 
 # вычисляем 95%-ный доверительный интервал 

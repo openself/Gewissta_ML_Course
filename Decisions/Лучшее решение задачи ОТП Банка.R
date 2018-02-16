@@ -571,7 +571,6 @@ opt_model
 glm3 <- h2o.glm(family= "binomial", training_frame = TrainValid, 
                 x=c(2:65), y=1, alpha = 0.1, lambda = 0.001844,
                 interactions=c("GENDER", "EDUCATION", "REGION_NM",
-                               "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
                                "FACT_TP_FL", "GEN_PHONE_FL"),
                 nfolds=5, keep_cross_validation_predictions=TRUE,
                 seed = 1000000)
@@ -821,7 +820,6 @@ val <- as.h2o(OTPset_test)
 glm_full <- h2o.glm(family= "binomial", training_frame = tr, validation_frame = val, 
                     x=c(2:65), y=1, seed = 1000000, alpha = 0.1, lambda = 0.001844,
                     interactions=c("GENDER", "EDUCATION", "REGION_NM",
-                                   "REG_ADDRESS_PROVINCE", "TP_PROVINCE", 
                                    "FACT_TP_FL", "GEN_PHONE_FL"))
 # смотрим модель
 glm_full
@@ -852,6 +850,42 @@ gbm_full <- h2o.gbm(learn_rate=0.15, ntrees = 65, max_depth = 2, min_rows=125,
 
 # смотрим модель
 summary(gbm_full)
+
+# получаем прогнозы логистической регрессии на
+# контрольных блоках перекрестной проверки
+# для использования в стекинге
+glm_for_stack <- h2o.glm(family= "binomial", alpha = 0.1, lambda = 0.001844,
+                         training_frame = tr,
+                         x=c(2:65), y=1, seed = 1000000,
+                         interactions=c("GENDER", "EDUCATION", "REGION_NM",
+                                        "FACT_TP_FL", "GEN_PHONE_FL"),
+                         nfolds = 5,
+                         fold_assignment = "Modulo",
+                         keep_cross_validation_predictions = TRUE)
+
+
+# получаем прогнозы градиентного бустинга на
+# контрольных блоках перекрестной проверки
+# для использования в стекинге
+gbm_for_stack <- h2o.gbm(learn_rate=0.15, ntrees = 65, max_depth = 2, min_rows=125,
+                         sample_rate = 1, col_sample_rate = 0.2,
+                         col_sample_rate_change_per_level = 1, 
+                         col_sample_rate_per_tree = 0.35,
+                         training_frame = tr,
+                         x=c(2:65), y=1, seed = 1000000,
+                         nfolds = 5,
+                         fold_assignment = "Modulo",
+                         keep_cross_validation_predictions = TRUE)
+
+
+ensemble <- h2o.stackedEnsemble(x=c(2:65), y=1, training_frame = tr,
+                                model_id = "my_ensemble",
+                                base_models = list(gbm_for_stack, glm_for_stack))
+ensemble
+
+
+perf <- h2o.performance(ensemble, newdata = val)
+perf
 
 # завершаем сеанс H2O
 h2o.shutdown()
