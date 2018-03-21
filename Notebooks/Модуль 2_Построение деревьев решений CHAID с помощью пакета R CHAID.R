@@ -212,14 +212,18 @@ detach("package:Hmisc", unload=TRUE)
 # 2.2.8 Однократное случайное разбиение набора данных на обучающую 
 # и контрольную выборки для проверки модели
 
-# разбиваем набор данных на случайную 
-# и контрольную выборки
+# задаем стартовое значение генератора случайных
+# чисел для воспроизводимости результатов разбиения
 set.seed(42)
 
+# создаем переменную random_number, которая случайным
+# образом разбивает набор данных на обучающую
+# и контрольную выборки
 data$random_number <- runif(nrow(data),0,1)
-development <- data[ which(data$random_number > 0.3), ]
+development <- data[which(data$random_number > 0.3), ]
 holdout <- data[ which(data$random_number <= 0.3), ]
 
+# удаляем переменную random_number
 data$random_number <- NULL
 development$random_number <- NULL
 holdout$random_number <- NULL
